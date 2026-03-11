@@ -35,8 +35,9 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         $block = $conn->real_escape_string($data["block"]);
         $num = $conn->real_escape_string($data["room_number"]);
         $cap = (int)$data["capacity"];
-        $conn->query("INSERT INTO rooms (block, room_number, capacity) VALUES ('$block', '$num', '$cap')");
-        logActivity($conn, "New Unit $num initialized in Block $block", "infrastructure", $admin);
+        $price = (float)($data["price"] ?? 0.00);
+        $conn->query("INSERT INTO rooms (block, room_number, capacity, price) VALUES ('$block', '$num', $cap, $price)");
+        logActivity($conn, "New Unit $num initialized in Block $block with price ?$price", "infrastructure", $admin);
     }
     echo json_encode(["status" => "Success"]);
 }

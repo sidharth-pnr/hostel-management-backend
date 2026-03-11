@@ -14,30 +14,19 @@ if ($action === "approve") {
     logActivity($conn, "Scholar $name account marked as $status", "registration", $admin, $sid);
 } elseif ($action === "allocate_room" || $action === "accept_suggestion") {
     $rid = (int)$data["room_id"];
-    
-    // 1. Find old room if any
-    $old_res = $conn->query("SELECT room_id FROM room_assignments WHERE student_id=$sid AND status='ALLOCATED'");
-    $old_room = $old_res->fetch_assoc();
-    $old_rid = $old_room ? $old_room["room_id"] : null;
 
-    // 2. Remove any existing entries for this student in activity table
+    // Update assignment to APPROVED/PENDING instead of ALLOCATED immediately
     $conn->query("DELETE FROM room_assignments WHERE student_id=$sid");
+    $conn->query("INSERT INTO room_assignments (student_id, room_id, status, payment_status) VALUES ($sid, $rid, 'APPROVED', 'PENDING')");
 
-    // 3. Add new allocation
-    $conn->query("INSERT INTO room_assignments (student_id, room_id, status) VALUES ($sid, $rid, 'ALLOCATED')");
-
-    // 4. Update students table (Legacy keys for frontend bridge)
-    $conn->query("UPDATE students SET allocated_room_id=$rid, requested_room_id=NULL, suggested_room_id=NULL, assigned_at=NOW(), requested_at=NULL, room_request_reason=NULL, room_rejection_note=NULL WHERE student_id=$sid");
-
-    // 5. Sync Counts
-    syncRoomCount($conn, $rid);
-    if($old_rid) syncRoomCount($conn, $old_rid);
+    // Clear suggestion/request flags but DONT set allocated_room_id yet
+    $conn->query("UPDATE students SET requested_room_id=NULL, suggested_room_id=NULL, requested_at=NULL, room_request_reason=NULL, room_rejection_note=NULL WHERE student_id=$sid");
 
     $s_name_res = $conn->query("SELECT name FROM students WHERE student_id=$sid");
     $s_name = $s_name_res->fetch_assoc()["name"];
     $r_num_res = $conn->query("SELECT room_number FROM rooms WHERE room_id=$rid");
     $r_num = $r_num_res->fetch_assoc()["room_number"];
-    logActivity($conn, "Room $r_num allocated to $s_name", "allocation", $admin, $sid);
+    logActivity($conn, "Room $r_num approved for $s_name. Awaiting payment.", "allocation", $admin, $sid);
 
 } elseif ($action === "deallocate") {
     $old_res = $conn->query("SELECT room_id FROM room_assignments WHERE student_id=$sid AND status='ALLOCATED'");
@@ -55,7 +44,7 @@ if ($action === "approve") {
 
 } elseif ($action === "suggest_room") {
     $rid = (int)$data["suggested_room_id"];
-    
+
     // Remove existing requests/suggestions
     $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status IN ('REQUESTED', 'SUGGESTED')");
     $conn->query("INSERT INTO room_assignments (student_id, room_id, status) VALUES ($sid, $rid, 'SUGGESTED')");
@@ -69,7 +58,7 @@ if ($action === "approve") {
 
 } elseif ($action === "reject_request") {
     $note = $conn->real_escape_string($data["rejection_note"] ?? "");
-    
+
     // Move current request to REJECTED status in history table
     $conn->query("UPDATE room_assignments SET status='REJECTED', reason='$note' WHERE student_id=$sid AND status='REQUESTED'");
     $conn->query("UPDATE students SET requested_room_id=NULL, suggested_room_id=NULL, requested_at=NULL, room_rejection_note='$note' WHERE student_id=$sid");
@@ -82,7 +71,7 @@ if ($action === "approve") {
 
 } elseif ($action === "delete_student") {
     if ($admin_role !== "SUPER") { die(json_encode(["error" => "Access Denied."])); }
-    
+
     $s_data_res = $conn->query("SELECT name, allocated_room_id FROM students WHERE student_id=$sid");
     $s_data = $s_data_res->fetch_assoc();
     $old_rid = $s_data["allocated_room_id"];
@@ -93,7 +82,7 @@ if ($action === "approve") {
 
     if($old_rid) syncRoomCount($conn, $old_rid);
 
-    logActivity($conn, "Scholar record for " . $s_data["name"] . " permanently removed", "registration", $admin, $sid);
+    logActivity($conn, "Scholar record for " . $s_data["name"] . " permanently removed", "registration", $admin, $sid);        
 }
 echo json_encode(["status" => "Success"]);
 $conn->close();
