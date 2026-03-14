@@ -1,70 +1,72 @@
-﻿<?php 
-include "db.php";
+<?php
+include_once "db.php";
 $data = json_decode(file_get_contents("php://input"), true);
-$action = $data["action"];
+$action = $data["action"] ?? "";
 $sid = (int)($data["student_id"] ?? 0);
-$admin = $conn->real_escape_string($data["admin_name"] ?? "System");
-$admin_role = $data["admin_role"] ?? "STAFF";
+$admin = $conn->real_escape_string($data["admin_name"] ?? "Warden");
 
 if ($action === "approve") {
     $status = $conn->real_escape_string($data["status"]);
-    $conn->query("UPDATE students SET account_status='$status' WHERE student_id=$sid");
-    $name_res = $conn->query("SELECT name FROM students WHERE student_id=$sid");
-    $name = $name_res->fetch_assoc()["name"];
-    logActivity($conn, "Scholar $name account marked as $status", "registration", $admin, $sid);
-} elseif ($action === "allocate_room" || $action === "accept_suggestion") {
+    $sql = "UPDATE students SET account_status=\"$status\" WHERE student_id=$sid";
+    if ($conn->query($sql)) {
+        logActivity($conn, "Student account $status", "registration", $admin, $sid);
+        echo json_encode(["status" => "Success"]);
+    } else { echo json_encode(["error" => "Fail"]); }
+} elseif ($action === "allocate_room") {
     $rid = (int)$data["room_id"];
-    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid");
-    $conn->query("INSERT INTO room_assignments (student_id, room_id, status, payment_status) VALUES ($sid, $rid, 'APPROVED', 'PENDING')");
-    $conn->query("UPDATE students SET requested_room_id=NULL, suggested_room_id=NULL, requested_at=NULL, room_request_reason=NULL, room_rejection_note=NULL WHERE student_id=$sid");
-    $s_name_res = $conn->query("SELECT name FROM students WHERE student_id=$sid");
-    $s_name = $s_name_res->fetch_assoc()["name"];
-    $r_num_res = $conn->query("SELECT room_number FROM rooms WHERE room_id=$rid");
-    $r_num = $r_num_res->fetch_assoc()["room_number"];
-    logActivity($conn, "Room $r_num approved for $s_name. Awaiting payment.", "allocation", $admin, $sid);
+    $conn->query("UPDATE room_assignments SET status=\"REJECTED\" WHERE student_id=$sid AND status=\"ALLOCATED\"");
+    $conn->query("UPDATE room_assignments SET status=\"APPROVED\", payment_status=\"PENDING\", created_at=NOW() WHERE student_id=$sid AND room_id=$rid"); 
+    $conn->query("UPDATE students SET requested_at=NULL WHERE student_id=$sid");
+    $old_res = $conn->query("SELECT room_id FROM room_assignments WHERE student_id=$sid AND status=\"REJECTED\" ORDER BY created_at DESC LIMIT 1");
+    if($old_row = $old_res->fetch_assoc()) syncRoomCount($conn, $old_row["room_id"]);
+    logActivity($conn, "Room $rid approved (relocation start)", "allocation", $admin, $sid);
+    echo json_encode(["status" => "Success"]);
 } elseif ($action === "deallocate") {
-    $old_res = $conn->query("SELECT room_id FROM room_assignments WHERE student_id=$sid AND status='ALLOCATED'");
-    $old_room = $old_res->fetch_assoc();
-    $old_rid = $old_room ? $old_room["room_id"] : null;
-    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status='ALLOCATED'");
-    $conn->query("UPDATE students SET allocated_room_id=NULL, assigned_at=NULL WHERE student_id=$sid");
-    if($old_rid) syncRoomCount($conn, $old_rid);
-    $s_name_res = $conn->query("SELECT name FROM students WHERE student_id=$sid");
-    $s_name = $s_name_res->fetch_assoc()["name"];
-    logActivity($conn, "Scholar $s_name de-allocated from room", "allocation", $admin, $sid);
+    $res = $conn->query("SELECT room_id FROM room_assignments WHERE student_id=$sid AND status=\"ALLOCATED\"");
+    $rid = $res->fetch_assoc()["room_id"] ?? null;
+    $conn->query("UPDATE room_assignments SET status=\"REJECTED\" WHERE student_id=$sid AND status=\"ALLOCATED\"");
+    $conn->query("UPDATE students SET assigned_at=NULL WHERE student_id=$sid");
+    if($rid) syncRoomCount($conn, $rid);
+    logActivity($conn, "De-allocated from room", "allocation", $admin, $sid);
+    echo json_encode(["status" => "Success"]);
 } elseif ($action === "suggest_room") {
     $rid = (int)$data["suggested_room_id"];
-    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status IN ('REQUESTED', 'SUGGESTED')");
-    $conn->query("INSERT INTO room_assignments (student_id, room_id, status) VALUES ($sid, $rid, 'SUGGESTED')");
-    $conn->query("UPDATE students SET suggested_room_id=$rid, requested_room_id=NULL, requested_at=NULL WHERE student_id=$sid");
-    $s_name_res = $conn->query("SELECT name FROM students WHERE student_id=$sid");
-    $s_name = $s_name_res->fetch_assoc()["name"];
-    $r_num_res = $conn->query("SELECT room_number FROM rooms WHERE room_id=$rid");
-    $r_num = $r_num_res->fetch_assoc()["room_number"];
-    logActivity($conn, "Room $r_num suggested to $s_name", "allocation", $admin, $sid);
+    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status IN (\"REQUESTED\", \"SUGGESTED\", \"APPROVED\")");
+    $conn->query("INSERT INTO room_assignments (student_id, room_id, status, payment_status) VALUES ($sid, $rid, \"SUGGESTED\", \"PENDING\")");
+    $conn->query("UPDATE students SET requested_at=NULL WHERE student_id=$sid");
+    logActivity($conn, "Admin suggested Room $rid", "allocation", $admin, $sid);
+    echo json_encode(["status" => "Success"]);
 } elseif ($action === "reject_request") {
     $note = $conn->real_escape_string($data["rejection_note"] ?? "");
-    $conn->query("UPDATE room_assignments SET status='REJECTED', reason='$note' WHERE student_id=$sid AND status='REQUESTED'");
-    $conn->query("UPDATE students SET requested_room_id=NULL, suggested_room_id=NULL, requested_at=NULL, room_rejection_note='$note' WHERE student_id=$sid");
-    $s_name_res = $conn->query("SELECT name FROM students WHERE student_id=$sid");
-    $s_name = $s_name_res->fetch_assoc()["name"];
-    $logMsg = "Room request from $s_name declined";
-    if (!empty($note)) $logMsg .= ": $note";
-    logActivity($conn, $logMsg, "allocation", $admin, $sid);
+    $conn->query("UPDATE room_assignments SET status=\"REJECTED\", reason=\"$note\" WHERE student_id=$sid AND status IN (\"REQUESTED\", \"SUGGESTED\", \"APPROVED\")");
+    $conn->query("UPDATE students SET requested_at=NULL WHERE student_id=$sid");
+    logActivity($conn, "Room request rejected: $note", "allocation", $admin, $sid);
+    echo json_encode(["status" => "Success"]);
 } elseif ($action === "dismiss_rejection") {
-    $conn->query("UPDATE students SET room_rejection_note=NULL WHERE student_id=$sid");
-    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status='REJECTED'");
+    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status=\"REJECTED\"");
+    echo json_encode(["status" => "Success"]);
 } elseif ($action === "delete_student") {
-    if ($admin_role !== "SUPER") { die(json_encode(["error" => "Access Denied."])); }
-    $s_data_res = $conn->query("SELECT name, allocated_room_id FROM students WHERE student_id=$sid");
-    $s_data = $s_data_res->fetch_assoc();
-    $old_rid = $s_data["allocated_room_id"];
+    // LOGICAL FIX: Get the room ID BEFORE deleting the assignment
+    $res = $conn->query("SELECT room_id FROM room_assignments WHERE student_id=$sid AND status=\"ALLOCATED\"");
+    $rid = $res->fetch_assoc()["room_id"] ?? null;
+
     $conn->query("DELETE FROM room_assignments WHERE student_id=$sid");
     $conn->query("DELETE FROM complaints WHERE student_id=$sid");
+    $conn->query("DELETE FROM activity_log WHERE target_student_id=$sid");
     $conn->query("DELETE FROM students WHERE student_id=$sid");
-    if($old_rid) syncRoomCount($conn, $old_rid);
-    logActivity($conn, "Scholar record for " . $s_data["name"] . " permanently removed", "registration", $admin, $sid);        
+
+    // LOGICAL FIX: Sync the room count AFTER the student is gone
+    if($rid) syncRoomCount($conn, $rid);
+
+    logActivity($conn, "Student record deleted (ID: $sid)", "registration", $admin);
+    echo json_encode(["status" => "Success"]);
+} elseif ($action === "accept_suggestion") {
+    $rid = (int)$data["room_id"];
+    $conn->query("UPDATE room_assignments SET status=\"REJECTED\" WHERE student_id=$sid AND status=\"ALLOCATED\"");
+    $conn->query("UPDATE room_assignments SET status=\"APPROVED\", payment_status=\"PENDING\" WHERE student_id=$sid AND room_id=$rid");
+    $conn->query("UPDATE students SET assigned_at=NOW() WHERE student_id=$sid");
+    logActivity($conn, "Accepted suggestion for Room $rid (Awaiting Payment)", "allocation", "Student", $sid);
+    echo json_encode(["status" => "Success"]);
 }
-echo json_encode(["status" => "Success"]);
 $conn->close();
 ?>

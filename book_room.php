@@ -1,5 +1,5 @@
 <?php 
-include "db.php";
+include_once "db.php";
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $result = $conn->query("SELECT * FROM rooms WHERE current_occupancy < capacity");
@@ -11,24 +11,24 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $rid = (int)$data["room_id"];
     $reason = $conn->real_escape_string($data["reason"] ?? "");
 
-    // Get room number for the log
+    // LOGICAL FIX: Check if room is ACTUALLY available right now
+    $check_room = $conn->query("SELECT current_occupancy, capacity FROM rooms WHERE room_id=$rid")->fetch_assoc();
+    if ($check_room["current_occupancy"] >= $check_room["capacity"]) {
+        die(json_encode(["error" => "This room just filled up! Please choose another."]));
+    }
+
     $r_res = $conn->query("SELECT room_number FROM rooms WHERE room_id=$rid");
     $r_num = $r_res->fetch_assoc()["room_number"] ?? "Unknown";
 
-    // 1. Remove any pending requests/suggestions first
-    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status IN ('REQUESTED', 'SUGGESTED')");
-
-    // 2. Add to activity table
-    $conn->query("INSERT INTO room_assignments (student_id, room_id, status, reason) VALUES ($sid, $rid, 'REQUESTED', '$reason')");
-
-    // 3. Update legacy columns for frontend compatibility
-    $sql = "UPDATE students SET requested_room_id=$rid, requested_at=NOW(), room_request_reason='$reason' WHERE student_id=$sid";        
+    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status IN (\"REQUESTED\", \"SUGGESTED\", \"APPROVED\")");
+    $sql = "INSERT INTO room_assignments (student_id, room_id, status, reason) VALUES ($sid, $rid, \"REQUESTED\", \"$reason\")";
 
     if ($conn->query($sql)) {
+        $conn->query("UPDATE students SET requested_at=NOW() WHERE student_id=$sid");
         logActivity($conn, "Requested room change to Room $r_num", "allocation", "Student", $sid);
         echo json_encode(["status" => "Success"]);
     } else {
-        echo json_encode(["error" => "Fail"]);
+        echo json_encode(["error" => "Database error during request."]);
     }
 }
 $conn->close();
