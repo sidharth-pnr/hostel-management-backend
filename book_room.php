@@ -20,8 +20,8 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $r_res = $conn->query("SELECT room_number FROM rooms WHERE room_id=$rid");
     $r_num = $r_res->fetch_assoc()["room_number"] ?? "Unknown";
 
-    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status IN (\"REQUESTED\", \"SUGGESTED\", \"APPROVED\")");
-    $sql = "INSERT INTO room_assignments (student_id, room_id, status, reason) VALUES ($sid, $rid, \"REQUESTED\", \"$reason\")";
+    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED')");
+    $sql = "INSERT INTO room_assignments (student_id, room_id, status, reason) VALUES ($sid, $rid, 'REQUESTED', '$reason')";
 
     if ($conn->query($sql)) {
         $conn->query("UPDATE students SET requested_at=NOW() WHERE student_id=$sid");

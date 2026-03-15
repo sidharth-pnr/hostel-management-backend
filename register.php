@@ -24,7 +24,7 @@ if ($check->num_rows > 0) {
 }
 
 $sql = "INSERT INTO students (name, reg_no, department, year, phone, password, account_status, created_at) 
-        VALUES (\"$name\", \"$reg\", \"$dept\", $year, \"$phone\", \"$pass\", \"PENDING\", NOW())";
+        VALUES ('$name', '$reg', '$dept', $year, '$phone', '$pass', 'PENDING', NOW())";
 if ($conn->query($sql)) {
     $sid = $conn->insert_id;
     logActivity($conn, "New student registration: $name", "registration", $name, $sid);

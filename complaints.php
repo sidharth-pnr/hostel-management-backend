@@ -29,8 +29,8 @@ if ($method === "POST") {
                 }
             }
             
-            $sql = "UPDATE complaints SET status=\"RESOLVED\", resolved_at=NOW(), resolution_note=\"$note\"";
-            if ($res_image_url) $sql .= ", resolution_image=\"$res_image_url\"";
+            $sql = "UPDATE complaints SET status='RESOLVED', resolved_at=NOW(), resolution_note='$note'";
+            if ($res_image_url) $sql .= ", resolution_image='$res_image_url'";
             $sql .= " WHERE complaint_id=$cid";
             
             if ($conn->query($sql)) {
@@ -60,7 +60,7 @@ if ($method === "POST") {
             }
             
             $sql = "INSERT INTO complaints (student_id, title, description, priority, category, status, issue_image) 
-                    VALUES ($sid, \"$title\", \"$desc\", \"$priority\", \"$category\", \"PENDING\", \"$issue_image_url\")";
+                    VALUES ($sid, '$title', '$desc', '$priority', '$category', 'PENDING', '$issue_image_url')";
             
             if ($conn->query($sql)) {
                 logActivity($conn, "New complaint submitted: $title", "complaint", "Student", $sid);
@@ -80,7 +80,7 @@ if ($method === "POST") {
             $category = $conn->real_escape_string($data["category"] ?? "Other");
 
             $sql = "INSERT INTO complaints (student_id, title, description, priority, category, status) 
-                    VALUES ($sid, \"$title\", \"$desc\", \"$priority\", \"$category\", \"PENDING\")";
+                    VALUES ($sid, '$title', '$desc', '$priority', '$category', 'PENDING')";
             if ($conn->query($sql)) {
                 logActivity($conn, "New complaint submitted: $title", "complaint", "Student", $sid);
                 echo json_encode(["status" => "success"]);
@@ -98,11 +98,11 @@ if ($method === "POST") {
     $admin = $conn->real_escape_string($data["admin_name"] ?? "Warden");
     $note = isset($data["note"]) ? $conn->real_escape_string($data["note"]) : null;
 
-    $sql = "UPDATE complaints SET status=\"$status\"";
+    $sql = "UPDATE complaints SET status='$status'";
     if ($status === "IN_PROGRESS") $sql .= ", in_progress_at = NOW()";
     if ($status === "RESOLVED" || $status === "CLOSED") {
         $sql .= ", resolved_at = NOW()";
-        if ($note) $sql .= ", resolution_note = \"$note\"";
+        if ($note) $sql .= ", resolution_note = '$note'";
     }
     $sql .= " WHERE complaint_id=$cid";
 

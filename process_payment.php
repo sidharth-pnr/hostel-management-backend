@@ -6,7 +6,7 @@ $rid = (int)$data["room_id"];
 $method = $conn->real_escape_string($data["payment_method"] ?? "UPI");
 
 // 1. Update assignment to COMPLETED and ALLOCATED
-$conn->query("UPDATE room_assignments SET status=\"ALLOCATED\", payment_status=\"COMPLETED\" WHERE student_id=$sid AND room_id=$rid");
+$conn->query("UPDATE room_assignments SET status='ALLOCATED', payment_status='COMPLETED' WHERE student_id=$sid AND room_id=$rid");
 
 // 2. Finalize student allocation
 $conn->query("UPDATE students SET assigned_at=NOW(), requested_at=NULL WHERE student_id=$sid");
