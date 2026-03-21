@@ -15,7 +15,7 @@ if ($action === "approve") {
 } elseif ($action === "allocate_room") {
     $rid = (int)$data["room_id"];
     $conn->query("UPDATE room_assignments SET status='REJECTED' WHERE student_id=$sid AND status='ALLOCATED'");
-    $conn->query("UPDATE room_assignments SET status='APPROVED', payment_status='PENDING', created_at=NOW() WHERE student_id=$sid AND room_id=$rid");
+    $conn->query("UPDATE room_assignments SET status='APPROVED', payment_status='PENDING', created_at=NOW() WHERE student_id=$sid AND room_id=$rid AND status IN ('REQUESTED', 'SUGGESTED')");
     $conn->query("UPDATE students SET requested_at=NULL WHERE student_id=$sid");
     $old_res = $conn->query("SELECT room_id FROM room_assignments WHERE student_id=$sid AND status='REJECTED' ORDER BY created_at DESC LIMIT 1");
     if($old_row = $old_res->fetch_assoc()) syncRoomCount($conn, $old_row["room_id"]);
@@ -31,7 +31,7 @@ if ($action === "approve") {
     echo json_encode(["status" => "Success"]);
 } elseif ($action === "suggest_room") {
     $rid = (int)$data["suggested_room_id"];
-    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED')");
+    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED')");   
     $conn->query("INSERT INTO room_assignments (student_id, room_id, status, payment_status) VALUES ($sid, $rid, 'SUGGESTED', 'PENDING')");
     $conn->query("UPDATE students SET requested_at=NULL WHERE student_id=$sid");
     logActivity($conn, "Admin suggested Room $rid", "allocation", $admin, $sid);
@@ -63,7 +63,7 @@ if ($action === "approve") {
 } elseif ($action === "accept_suggestion") {
     $rid = (int)$data["room_id"];
     $conn->query("UPDATE room_assignments SET status='REJECTED' WHERE student_id=$sid AND status='ALLOCATED'");
-    $conn->query("UPDATE room_assignments SET status='APPROVED', payment_status='PENDING' WHERE student_id=$sid AND room_id=$rid");
+    $conn->query("UPDATE room_assignments SET status='APPROVED', payment_status='PENDING' WHERE student_id=$sid AND room_id=$rid AND status='SUGGESTED'");
     $conn->query("UPDATE students SET assigned_at=NOW() WHERE student_id=$sid");
     logActivity($conn, "Accepted suggestion for Room $rid (Awaiting Payment)", "allocation", "Student", $sid);
     echo json_encode(["status" => "Success"]);
