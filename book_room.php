@@ -1,4 +1,4 @@
-<?php 
+<?php
 include_once "db.php";
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
@@ -6,20 +6,22 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $list = []; while($row = $result->fetch_assoc()) $list[] = $row;
     echo json_encode($list);
 } else {
-    $data = sanitize($conn, getRequestData());
+    $data = getRequestData();
     $sid = (int)$data["student_id"];
     $rid = (int)$data["room_id"];
     $reason = $data["reason"] ?? "";
 
-    $check_room = $conn->query("SELECT (SELECT COUNT(*) FROM room_assignments ra WHERE ra.room_id = rooms.room_id AND ra.status = 'ALLOCATED') as current_occupancy, capacity, room_number FROM rooms WHERE room_id=$rid")->fetch_assoc();
+    $stmt = executeQuery($conn, "SELECT (SELECT COUNT(*) FROM room_assignments ra WHERE ra.room_id = rooms.room_id AND ra.status = 'ALLOCATED') as current_occupancy, capacity, room_number FROM rooms WHERE room_id=?", [$rid], "i");
+    $check_room = $stmt->get_result()->fetch_assoc();
+
     if ($check_room["current_occupancy"] >= $check_room["capacity"]) {
         sendError("This room just filled up! Please choose another.");
     }
 
     $r_num = $check_room["room_number"];
-    $conn->query("DELETE FROM room_assignments WHERE student_id=$sid AND (status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') OR (status='REJECTED' AND room_id=$rid))");   
-    
-    if ($conn->query("INSERT INTO room_assignments (student_id, room_id, status, reason) VALUES ($sid, $rid, 'REQUESTED', '$reason')")) {
+    executeQuery($conn, "DELETE FROM room_assignments WHERE student_id=? AND (status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') OR (status='REJECTED' AND room_id=?))", [$sid, $rid], "ii");
+
+    if (executeQuery($conn, "INSERT INTO room_assignments (student_id, room_id, status, reason) VALUES (?, ?, 'REQUESTED', ?)", [$sid, $rid, $reason], "iis")) {
         logActivity($conn, "Requested room change to Room $r_num", "allocation", "Student", $sid);
         sendResponse();
     } else sendError("Database error during request.");

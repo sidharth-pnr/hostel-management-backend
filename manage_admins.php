@@ -1,6 +1,6 @@
 <?php
 include_once "db.php";
-$data = sanitize($conn, getRequestData());
+$data = getRequestData();
 $admin_role = $data["admin_role"] ?? "";
 $action = $data["action"] ?? "list";
 
@@ -13,14 +13,14 @@ if ($action === "list") {
 } elseif ($action === "add") {
     $name = $data["name"];
     $user = $data["username"];
-    $pass = $data["password"];
+    $pass = password_hash($data["password"], PASSWORD_DEFAULT);
     $role = $data["role"];
-    if ($conn->query("INSERT INTO admins (name, username, password, role) VALUES ('$name', '$user', '$pass', '$role')")) sendResponse(["status" => "success"]);
+    if (executeQuery($conn, "INSERT INTO admins (name, username, password, role) VALUES (?, ?, ?, ?)", [$name, $user, $pass, $role], "ssss")) sendResponse(["status" => "success"]);
     else sendError("Add failed");
 } elseif ($action === "delete") {
     $id = (int)$data["id"];
     if ($id === 1) sendError("Cannot delete master admin");
-    if ($conn->query("DELETE FROM admins WHERE admin_id=$id")) sendResponse(["status" => "success"]);
+    if (executeQuery($conn, "DELETE FROM admins WHERE admin_id=?", [$id], "i")) sendResponse(["status" => "success"]);
     else sendError("Delete failed");
 }
 $conn->close();

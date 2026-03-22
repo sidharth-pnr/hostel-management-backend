@@ -4,9 +4,9 @@ include_once "db.php";
 // 1. Overall Counts
 $counts = [
     "total_students" => $conn->query("SELECT COUNT(*) FROM students WHERE account_status='ACTIVE'")->fetch_row()[0],
-    "pending_students" => $conn->query("SELECT COUNT(*) FROM students WHERE account_status='PENDING'")->fetch_row()[0],
+    "pending_students" => $conn->query("SELECT COUNT(*) FROM students WHERE account_status='PENDING'")->fetch_row()[0],        
     "total_capacity" => $conn->query("SELECT SUM(capacity) FROM rooms")->fetch_row()[0],
-    "total_occupied" => $conn->query("SELECT COUNT(*) FROM room_assignments WHERE status='ALLOCATED'")->fetch_row()[0],
+    "total_occupied" => $conn->query("SELECT COUNT(*) FROM room_assignments WHERE status='ALLOCATED'")->fetch_row()[0],        
     "high_priority" => $conn->query("SELECT COUNT(*) FROM complaints WHERE priority IN ('High', 'Urgent') AND status != 'CLOSED'")->fetch_row()[0]
 ];
 $counts["occupancy_rate"] = $counts["total_capacity"] > 0 ? round(($counts["total_occupied"] / $counts["total_capacity"]) * 100) : 0;

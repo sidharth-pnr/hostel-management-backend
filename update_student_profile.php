@@ -1,13 +1,13 @@
 <?php
 include_once "db.php";
-$data = sanitize($conn, getRequestData());
+$data = getRequestData();
 $sid = (int)$data["student_id"];
 $name = $data["name"];
 $dept = $data["department"];
 $year = (int)$data["year"];
 $phone = $data["phone"];
 
-if ($conn->query("UPDATE students SET name='$name', department='$dept', year=$year, phone='$phone' WHERE student_id=$sid")) {
+if (executeQuery($conn, "UPDATE students SET name=?, department=?, year=?, phone=? WHERE student_id=?", [$name, $dept, $year, $phone, $sid], "ssisi")) {  
     logActivity($conn, "Profile updated by scholar", "registration", $name, $sid);
     sendResponse();
 } else sendError("Update failed");

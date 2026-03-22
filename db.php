@@ -7,10 +7,10 @@ if ($_SERVER["REQUEST_METHOD"] == "OPTIONS") {
 }
 header("Content-Type: application/json");
 
-$host = "localhost"; 
-$user = "root"; 
-$pass = ""; 
-$db = "hostel_database"; 
+$host = "localhost";
+$user = "root";
+$pass = "";
+$db = "hostel_database";
 $port = 3307;
 
 $conn = new mysqli($host, $user, $pass, $db, $port);
@@ -37,13 +37,12 @@ function sendResponse($data = []) {
  * Standard Error Response
  */
 function sendError($message, $code = 200) {
-    // We use 200 for logical errors to avoid CORS/Network trigger issues in some frontend setups, 
-    // but the JSON will contain the error status.
     echo json_encode(["status" => "error", "error" => $message]);
     exit;
 }
 
 /**
+ * DEPRECATED: Use Prepared Statements instead of manual sanitization.
  * Recursively sanitize data
  */
 function sanitize($conn, $data) {
@@ -57,9 +56,30 @@ function sanitize($conn, $data) {
     return $data;
 }
 
+/**
+ * Helper for Prepared Statements
+ */
+function executeQuery($conn, $sql, $params = [], $types = "") {
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        sendError("Prepare failed: " . $conn->error);
+    }
+    if (!empty($params)) {
+        if (empty($types)) {
+            $types = str_repeat("s", count($params));
+        }
+        $stmt->bind_param($types, ...$params);
+    }
+    if (!$stmt->execute()) {
+        sendError("Execute failed: " . $stmt->error);
+    }
+    return $stmt;
+}
+
 function logActivity($conn, $msg, $type, $by, $target_sid = null) {
-    $msg = sanitize($conn, $msg);
-    $by = sanitize($conn, $by);
-    $target = $target_sid ? (int)$target_sid : "NULL";
-    $conn->query("INSERT INTO activity_log (message, type, performed_by, target_student_id) VALUES ('$msg', '$type', '$by', $target)");
-} ?>
+    $sql = "INSERT INTO activity_log (message, type, performed_by, target_student_id) VALUES (?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("sssi", $msg, $type, $by, $target_sid);
+    $stmt->execute();
+} 
+?>

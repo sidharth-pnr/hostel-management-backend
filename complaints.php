@@ -1,7 +1,7 @@
 <?php
 include_once "db.php";
 $method = $_SERVER["REQUEST_METHOD"];
-$data = sanitize($conn, getRequestData());
+$data = getRequestData();
 
 /**
  * Demo Image Logic - Returns a high-quality icon based on category
@@ -16,8 +16,7 @@ function getDemoImage($category, $status = 'PENDING') {
         "Cleaning"   => "mop.png",
         "Other"      => "error.png"
     ];
-    
-    // If resolved, we can show a "check" version or the same icon
+
     if ($status === 'RESOLVED' || $status === 'CLOSED') {
         return "https://img.icons8.com/color/96/checked-checkbox.png";
     }
@@ -27,18 +26,17 @@ function getDemoImage($category, $status = 'PENDING') {
 
 if ($method === "POST") {
     $action = $data["action"] ?? "";
-    
+
     if ($action === "resolve") {
         if (($data["role"] ?? "") !== "admin") sendError("Unauthorized access");
 
         $cid = (int)$data["complaint_id"];
         $note = $data["note"] ?? "";
         $admin = $data["admin_name"] ?? "Warden";
-        
-        $sql = "UPDATE complaints SET status='RESOLVED', resolved_at=NOW(), resolution_note='$note' WHERE complaint_id=$cid";
-        
-        if ($conn->query($sql)) {
-            $comp = $conn->query("SELECT title, student_id FROM complaints WHERE complaint_id=$cid")->fetch_assoc();
+
+        if (executeQuery($conn, "UPDATE complaints SET status='RESOLVED', resolved_at=NOW(), resolution_note=? WHERE complaint_id=?", [$note, $cid], "si")) {
+            $comp_stmt = executeQuery($conn, "SELECT title, student_id FROM complaints WHERE complaint_id=?", [$cid], "i");
+            $comp = $comp_stmt->get_result()->fetch_assoc();
             logActivity($conn, "Complaint resolved: " . $comp["title"], "complaint", $admin, $comp["student_id"]);
             sendResponse();
         } else sendError($conn->error);
@@ -49,12 +47,9 @@ if ($method === "POST") {
         $desc = $data["description"] ?? "No Description";
         $priority = $data["priority"] ?? "Low";
         $category = $data["category"] ?? "Other";
-        
-        $sql = "INSERT INTO complaints (student_id, title, description, priority, category, status) 
-                VALUES ($sid, '$title', '$desc', '$priority', '$category', 'PENDING')";
-        
-        if ($conn->query($sql)) {
-            logActivity($conn, "New complaint submitted: $title", "complaint", "Student", $sid);
+
+        if (executeQuery($conn, "INSERT INTO complaints (student_id, title, description, priority, category, status) VALUES (?, ?, ?, ?, ?, 'PENDING')", [$sid, $title, $desc, $priority, $category], "issss")) {
+            logActivity($conn, "New complaint submitted: " . $title, "complaint", "Student", $sid);
             sendResponse();
         } else sendError($conn->error);
     }
@@ -64,33 +59,51 @@ if ($method === "POST") {
     $admin = $data["admin_name"] ?? "Warden";
     $note = $data["note"] ?? null;
 
-    $sql = "UPDATE complaints SET status='$status'";
+    $sql = "UPDATE complaints SET status=?";
+    $params = [$status];
+    $types = "s";
+
     if ($status === "IN_PROGRESS") $sql .= ", in_progress_at = NOW()";
     if ($status === "RESOLVED" || $status === "CLOSED") {
         $sql .= ", resolved_at = NOW()";
-        if ($note) $sql .= ", resolution_note = '$note'";
+        if ($note) {
+            $sql .= ", resolution_note = ?";
+            $params[] = $note;
+            $types .= "s";
+        }
     }
-    $sql .= " WHERE complaint_id=$cid";
+    $sql .= " WHERE complaint_id=?";
+    $params[] = $cid;
+    $types .= "i";
 
-    if ($conn->query($sql)) {
-        $comp = $conn->query("SELECT student_id, title FROM complaints WHERE complaint_id=$cid")->fetch_assoc();
-        logActivity($conn, "Complaint status updated to $status: " . $comp["title"], "complaint", $admin, $comp["student_id"]);
+    if (executeQuery($conn, $sql, $params, $types)) {
+        $comp_stmt = executeQuery($conn, "SELECT student_id, title FROM complaints WHERE complaint_id=?", [$cid], "i");
+        $comp = $comp_stmt->get_result()->fetch_assoc();
+        logActivity($conn, "Complaint status updated to " . $status . ": " . $comp["title"], "complaint", $admin, $comp["student_id"]);
         sendResponse();
     } else sendError($conn->error);
 } elseif ($method === "DELETE") {
     $cid = (int)($_GET["id"] ?? 0);
-    if ($cid && $conn->query("DELETE FROM complaints WHERE complaint_id=$cid")) sendResponse();
+    if ($cid && executeQuery($conn, "DELETE FROM complaints WHERE complaint_id=?", [$cid], "i")) sendResponse();
     else sendError("Missing or Invalid ID");
 } else {
     $sid = (int)($_GET["id"] ?? 0);
-    $sql = "SELECT c.*, s.name as student_name 
-            FROM complaints c JOIN students s ON c.student_id = s.student_id";
-    if ($sid) $sql .= " WHERE c.student_id = $sid";
-    $result = $conn->query($sql . " ORDER BY complaint_id DESC");
+    $sql = "SELECT c.*, s.name as student_name FROM complaints c JOIN students s ON c.student_id = s.student_id";
+    $params = [];
+    $types = "";
     
-    $list = []; 
+    if ($sid) {
+        $sql .= " WHERE c.student_id = ?";
+        $params[] = $sid;
+        $types = "i";
+    }
+    $sql .= " ORDER BY complaint_id DESC";
+    
+    $stmt = executeQuery($conn, $sql, $params, $types);
+    $result = $stmt->get_result();
+
+    $list = [];
     while($row = $result->fetch_assoc()) {
-        // Add dynamic demo images to the response
         $row["issue_image_url"] = getDemoImage($row["category"]);
         $row["resolution_image_url"] = getDemoImage($row["category"], $row["status"]);
         $list[] = $row;

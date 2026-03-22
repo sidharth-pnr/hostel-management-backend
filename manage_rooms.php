@@ -6,29 +6,47 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $list = []; while($row = $res->fetch_assoc()) $list[] = $row;
     echo json_encode($list);
 } else {
-    $data = sanitize($conn, getRequestData());
+    $data = getRequestData();
+    if (!$data) sendError("No data received by API");
+    
     $action = $data["action"] ?? "add";
     $admin = $data["admin_name"] ?? "Admin";
 
     if ($action === "delete") {
+        if (empty($data["room_id"])) sendError("Missing Room ID");
         $rid = (int)$data["room_id"];
-        if ($conn->query("DELETE FROM rooms WHERE room_id=$rid")) {
+        if (executeQuery($conn, "DELETE FROM rooms WHERE room_id=?", [$rid], "i")) {
             logActivity($conn, "Room deleted (ID: $rid)", "infrastructure", $admin);
             sendResponse();
         } else sendError("Delete failed");
     } else {
-        $block = $data["block"];
-        $num = $data["room_number"];
-        $cap = (int)$data["capacity"];
-        $price = (float)$data["price"];
+        // Add Room
+        $block = $data["block"] ?? "";
+        $num = $data["room_number"] ?? "";
+        $cap = $data["capacity"] ?? "";
+        $price = $data["price"] ?? "";
 
-        $check = $conn->query("SELECT * FROM rooms WHERE block='$block' AND room_number='$num'");
-        if ($check->num_rows > 0) sendError("Room already exists in this block");
+        if ($block === "" || $num === "" || $cap === "" || $price === "") {
+            sendError("All fields (Block, Room Number, Capacity, Price) are required");
+        }
 
-        if ($conn->query("INSERT INTO rooms (block, room_number, capacity, price) VALUES ('$block', '$num', $cap, $price)")) {
+        $cap = (int)$cap;
+        $price = (float)$price;
+
+        // Check if room number exists globally since room_number is UNIQUE in DB
+        $stmt = executeQuery($conn, "SELECT block FROM rooms WHERE room_number=?", [$num], "s");
+        $result = $stmt->get_result();
+        if ($result->num_rows > 0) {
+            $existing = $result->fetch_assoc();
+            sendError("Room number $num is already registered in Block " . $existing['block'] . ". Each room number must be unique across the entire hostel.");
+        }
+
+        if (executeQuery($conn, "INSERT INTO rooms (block, room_number, capacity, price) VALUES (?, ?, ?, ?)", [$block, $num, $cap, $price], "ssid")) {
             logActivity($conn, "New room added: $block-$num", "infrastructure", $admin);
-            sendResponse(["status" => "success"]);
-        } else sendError("Failed to add room");
+            sendResponse();
+        } else {
+            sendError("Database rejection: Failed to initialize room record");
+        }
     }
 }
 $conn->close();

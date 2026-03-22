@@ -4,8 +4,7 @@ $type = $_GET["type"] ?? "";
 
 if ($type === "students") {
     // Robust query to fetch student data, current room, and pending requests independently
-    $res = $conn->query("
-        SELECT s.*, 
+    $res = $conn->query("SELECT s.*, 
                (SELECT status FROM room_assignments WHERE student_id = s.student_id AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') ORDER BY created_at DESC LIMIT 1) as room_request_status, 
                (SELECT reason FROM room_assignments WHERE student_id = s.student_id AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') ORDER BY created_at DESC LIMIT 1) as room_request_reason,
                (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') ORDER BY created_at DESC LIMIT 1) as requested_room_id,
@@ -18,8 +17,7 @@ if ($type === "students") {
     $res = $conn->query("SELECT * FROM students WHERE account_status='PENDING' ORDER BY created_at DESC");
 } elseif ($type === "room_occupants") {
     $rid = (int)($_GET["room_id"] ?? 0);
-    $res = $conn->query("
-        SELECT s.name, s.reg_no, s.department 
+    $res = $conn->query("SELECT s.name, s.reg_no, s.department 
         FROM students s 
         JOIN room_assignments ra ON s.student_id = ra.student_id 
         WHERE ra.room_id=$rid AND ra.status='ALLOCATED'
