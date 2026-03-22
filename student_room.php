@@ -3,6 +3,7 @@ include_once "db.php";
 $sid = (int)($_GET["id"] ?? 0);
 
 // Unified status query
+// Added 'REJECTED' to allowed statuses in WHERE clause so rejection note can be fetched
 $res = $conn->query("
     SELECT 
         ra.status, ra.payment_status, ra.room_id, ra.room_id as requested_room_id, ra.reason as room_request_reason,
@@ -15,8 +16,14 @@ $res = $conn->query("
         (SELECT reason FROM room_assignments WHERE student_id=$sid AND status='REJECTED' ORDER BY created_at DESC LIMIT 1) as room_rejection_note
     FROM room_assignments ra
     LEFT JOIN rooms r ON ra.room_id = r.room_id
-    WHERE ra.student_id = $sid AND ra.status IN ('ALLOCATED', 'REQUESTED', 'SUGGESTED', 'APPROVED')
-    ORDER BY CASE ra.status WHEN 'ALLOCATED' THEN 1 WHEN 'APPROVED' THEN 2 WHEN 'REQUESTED' THEN 3 ELSE 4 END ASC
+    WHERE ra.student_id = $sid AND ra.status IN ('ALLOCATED', 'REQUESTED', 'SUGGESTED', 'APPROVED', 'REJECTED')
+    ORDER BY CASE ra.status 
+        WHEN 'ALLOCATED' THEN 1 
+        WHEN 'APPROVED' THEN 2 
+        WHEN 'SUGGESTED' THEN 3 
+        WHEN 'REQUESTED' THEN 4 
+        WHEN 'REJECTED' THEN 5 
+        ELSE 6 END ASC
     LIMIT 1
 ");
 
