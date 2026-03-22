@@ -3,18 +3,15 @@ include_once "db.php";
 $type = $_GET["type"] ?? "";
 
 if ($type === "students") {
+    // Robust query to fetch student data, current room, and pending requests independently
     $res = $conn->query("
         SELECT s.*, 
-               ra.status as room_request_status, 
-               ra.reason as room_request_reason,
-               ra.room_id as requested_room_id,
-               r.room_number as current_room_no,
-               (SELECT room_number FROM rooms WHERE room_id = ra.room_id) as requested_room_no
+               (SELECT status FROM room_assignments WHERE student_id = s.student_id AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') ORDER BY created_at DESC LIMIT 1) as room_request_status, 
+               (SELECT reason FROM room_assignments WHERE student_id = s.student_id AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') ORDER BY created_at DESC LIMIT 1) as room_request_reason,
+               (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') ORDER BY created_at DESC LIMIT 1) as requested_room_id,
+               (SELECT r.room_number FROM rooms r JOIN room_assignments ra ON r.room_id = ra.room_id WHERE ra.student_id = s.student_id AND ra.status = 'ALLOCATED' LIMIT 1) as current_room_no,
+               (SELECT r.room_number FROM rooms r WHERE r.room_id = (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') ORDER BY created_at DESC LIMIT 1)) as requested_room_no
         FROM students s 
-        LEFT JOIN room_assignments ra ON s.student_id = ra.student_id 
-             AND ra.status IN ('ALLOCATED', 'REQUESTED', 'SUGGESTED', 'APPROVED')
-        LEFT JOIN rooms r ON ra.room_id = r.room_id AND ra.status = 'ALLOCATED'
-        GROUP BY s.student_id
         ORDER BY s.name ASC
     ");
 } elseif ($type === "pending") {
