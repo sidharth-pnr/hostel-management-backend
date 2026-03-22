@@ -6,8 +6,15 @@ $sid = (int)($_GET["id"] ?? 0);
 // Added 'REJECTED' to allowed statuses in WHERE clause so rejection note can be fetched
 $res = $conn->query("
     SELECT 
-        ra.status, ra.payment_status, ra.room_id, ra.room_id as requested_room_id, ra.reason as room_request_reason,
-        r.room_number, r.block, r.capacity, r.price, r.current_occupancy,
+        ra.status, 
+        CASE 
+            WHEN ra.status = 'ALLOCATED' THEN 'COMPLETED'
+            WHEN ra.status IN ('APPROVED', 'SUGGESTED') THEN 'PENDING'
+            ELSE 'NOT_REQUIRED' 
+        END as payment_status,
+        ra.room_id, ra.room_id as requested_room_id, ra.reason as room_request_reason,
+        r.room_number, r.block, r.capacity, r.price, 
+        (SELECT COUNT(*) FROM room_assignments ra2 WHERE ra2.room_id = r.room_id AND ra2.status = 'ALLOCATED') as current_occupancy,
         (SELECT room_id FROM room_assignments WHERE student_id=$sid AND status='APPROVED' LIMIT 1) as approved_room_id,
         (SELECT room_number FROM rooms WHERE room_id = approved_room_id) as approved_room_number,
         (SELECT price FROM rooms WHERE room_id = approved_room_id) as approved_room_price,

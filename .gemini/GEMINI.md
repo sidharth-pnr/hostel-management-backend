@@ -3,6 +3,7 @@
 ## Project Architecture
 - **Backend:** API located in `C:\xampp\htdocs\hostel_room_api` (PHP/XAMPP environment)
 - **Frontend:** React application located in `C:\Users\LENOVO\OneDrive\Desktop\Group 15\hostel-management`
+- **Data Priority:** Core tables (`students`, `rooms`, `complaints`, `room_assignments`, `admins`) are essential. The `activity_log` table is non-essential and should not be used for critical data dependencies.
 
 ## Operational Rules
 - Always consider the impact on both frontend and backend when making changes.

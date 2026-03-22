@@ -62,9 +62,4 @@ function logActivity($conn, $msg, $type, $by, $target_sid = null) {
     $by = sanitize($conn, $by);
     $target = $target_sid ? (int)$target_sid : "NULL";
     $conn->query("INSERT INTO activity_log (message, type, performed_by, target_student_id) VALUES ('$msg', '$type', '$by', $target)");
-}
-
-function syncRoomCount($conn, $rid) {
-    if(!$rid) return;
-    $conn->query("UPDATE rooms SET current_occupancy = (SELECT COUNT(*) FROM room_assignments WHERE room_id=$rid AND status='ALLOCATED') WHERE room_id=$rid");
 } ?>

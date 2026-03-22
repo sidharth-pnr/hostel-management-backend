@@ -2,7 +2,7 @@
 include_once "db.php";
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
-    $res = $conn->query("SELECT * FROM rooms ORDER BY room_number ASC");
+    $res = $conn->query("SELECT r.*, (SELECT COUNT(*) FROM room_assignments ra WHERE ra.room_id = r.room_id AND ra.status = 'ALLOCATED') as current_occupancy FROM rooms r ORDER BY room_number ASC");
     $list = []; while($row = $res->fetch_assoc()) $list[] = $row;
     echo json_encode($list);
 } else {
