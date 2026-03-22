@@ -1,37 +1,27 @@
 <?php
-include 'db.php';
-$data = json_decode(file_get_contents('php://input'), true);
-if (!$data) $data = $_POST;
+include_once "db.php";
+$data = sanitize($conn, getRequestData());
+$admin_role = $data["admin_role"] ?? "";
+$action = $data["action"] ?? "list";
 
-$admin_role = $data['admin_role'] ?? '';
+if ($admin_role !== "SUPER") sendError("Unauthorized");
 
-// ONLY SUPER admins can access this file
-if ($admin_role !== 'SUPER') {
-    die(json_encode(['error' => 'Unauthorized. Only SUPER admins can manage accounts.']));
-}
-
-$method = $_SERVER['REQUEST_METHOD'];
-
-if ($method === 'POST' && isset($data['action']) && $data['action'] === 'list') {
+if ($action === "list") {
     $res = $conn->query("SELECT admin_id, name, username, role FROM admins");
-    $list = [];
-    while($row = $res->fetch_assoc()) $list[] = $row;
+    $list = []; while($row = $res->fetch_assoc()) $list[] = $row;
     echo json_encode($list);
-} elseif ($method === 'POST') {
-    $action = $data['action'] ?? 'add';
-    if ($action === 'add') {
-        $name = $conn->real_escape_string($data['name']);
-        $user = $conn->real_escape_string($data['username']);
-        $pass = $conn->real_escape_string($data['password']);
-        $role = $conn->real_escape_string($data['role'] ?? 'STAFF');
-        $sql = "INSERT INTO admins (name, username, password, role) VALUES ('$name', '$user', '$pass', '$role')";
-        echo json_encode($conn->query($sql) ? ["status" => "Success"] : ["error" => $conn->error]);
-    } elseif ($action === 'delete') {
-        $id = (int)$data['id'];
-        if ($id == 1) die(json_encode(["error" => "Cannot delete the primary SUPER admin."]));
-        $sql = "DELETE FROM admins WHERE admin_id=$id";
-        echo json_encode($conn->query($sql) ? ["status" => "Success"] : ["error" => $conn->error]);
-    }
+} elseif ($action === "add") {
+    $name = $data["name"];
+    $user = $data["username"];
+    $pass = $data["password"];
+    $role = $data["role"];
+    if ($conn->query("INSERT INTO admins (name, username, password, role) VALUES ('$name', '$user', '$pass', '$role')")) sendResponse(["status" => "success"]);
+    else sendError("Add failed");
+} elseif ($action === "delete") {
+    $id = (int)$data["id"];
+    if ($id === 1) sendError("Cannot delete master admin");
+    if ($conn->query("DELETE FROM admins WHERE admin_id=$id")) sendResponse(["status" => "success"]);
+    else sendError("Delete failed");
 }
 $conn->close();
 ?>

@@ -1,25 +1,25 @@
-<?php 
-include "db.php";
-$id = (int)$_GET["id"];
+<?php
+include_once "db.php";
+$sid = (int)($_GET["id"] ?? 0);
 
-$sql = "SELECT r.*, s.account_status, 
-        (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status = 'REQUESTED' LIMIT 1) as requested_room_id,
-        (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status = 'SUGGESTED' LIMIT 1) as suggested_room_id,
-        (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status = 'APPROVED' LIMIT 1) as approved_room_id,
-        (SELECT payment_status FROM room_assignments WHERE student_id = s.student_id AND status = 'APPROVED' LIMIT 1) as payment_status,
-        (SELECT room_number FROM rooms WHERE room_id = (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status = 'APPROVED' LIMIT 1)) as approved_room_number,
-        (SELECT price FROM rooms WHERE room_id = (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status = 'APPROVED' LIMIT 1)) as approved_room_price,
-        r2.room_number as suggested_room_number,
-        (SELECT reason FROM room_assignments WHERE student_id = s.student_id AND status = 'REJECTED' ORDER BY created_at DESC LIMIT 1) as room_rejection_note,
-        (SELECT reason FROM room_assignments WHERE student_id = s.student_id AND status = 'REQUESTED' LIMIT 1) as room_request_reason
-        FROM students s 
-        LEFT JOIN room_assignments ra1 ON s.student_id = ra1.student_id AND ra1.status = 'ALLOCATED'
-        LEFT JOIN rooms r ON ra1.room_id = r.room_id
-        LEFT JOIN room_assignments ra2 ON s.student_id = ra2.student_id AND ra2.status = 'SUGGESTED'
-        LEFT JOIN rooms r2 ON ra2.room_id = r2.room_id
-        WHERE s.student_id=$id";
+// Unified status query
+$res = $conn->query("
+    SELECT 
+        ra.status, ra.payment_status, ra.room_id, ra.room_id as requested_room_id, ra.reason as room_request_reason,
+        r.room_number, r.block, r.capacity, r.price, r.current_occupancy,
+        (SELECT room_id FROM room_assignments WHERE student_id=$sid AND status='APPROVED' LIMIT 1) as approved_room_id,
+        (SELECT room_number FROM rooms WHERE room_id = approved_room_id) as approved_room_number,
+        (SELECT price FROM rooms WHERE room_id = approved_room_id) as approved_room_price,
+        (SELECT room_id FROM room_assignments WHERE student_id=$sid AND status='SUGGESTED' LIMIT 1) as suggested_room_id,
+        (SELECT room_number FROM rooms WHERE room_id = suggested_room_id) as suggested_room_number,
+        (SELECT reason FROM room_assignments WHERE student_id=$sid AND status='REJECTED' ORDER BY created_at DESC LIMIT 1) as room_rejection_note
+    FROM room_assignments ra
+    LEFT JOIN rooms r ON ra.room_id = r.room_id
+    WHERE ra.student_id = $sid AND ra.status IN ('ALLOCATED', 'REQUESTED', 'SUGGESTED', 'APPROVED')
+    ORDER BY CASE ra.status WHEN 'ALLOCATED' THEN 1 WHEN 'APPROVED' THEN 2 WHEN 'REQUESTED' THEN 3 ELSE 4 END ASC
+    LIMIT 1
+");
 
-$res = $conn->query($sql);
-echo json_encode($res->fetch_assoc());
+echo json_encode($res->fetch_assoc() ?: ["status" => "NONE"]);
 $conn->close();
 ?>

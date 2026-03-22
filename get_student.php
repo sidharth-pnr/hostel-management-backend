@@ -1,15 +1,10 @@
-<?php include "db.php";
-$id = (int)$_GET["id"];
-$sql = "SELECT s.*, 
-        (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status = 'ALLOCATED' LIMIT 1) as allocated_room_id,
-        (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status = 'REQUESTED' LIMIT 1) as requested_room_id,
-        (SELECT room_id FROM room_assignments WHERE student_id = s.student_id AND status = 'SUGGESTED' LIMIT 1) as suggested_room_id
-        FROM students s WHERE s.student_id=$id";
-$res = $conn->query($sql);
-$data = $res->fetch_assoc();
-if ($data) { 
-    unset($data["password"]); 
-    echo json_encode(["status" => "success", "student" => $data]); 
-}
-else { echo json_encode(["status" => "error", "message" => "Not found"]); }
-$conn->close(); ?>
+<?php
+include_once "db.php";
+$sid = (int)($_GET["id"] ?? 0);
+$res = $conn->query("SELECT student_id, name, reg_no, department, year, phone, account_status FROM students WHERE student_id=$sid");
+
+if ($student = $res->fetch_assoc()) sendResponse(["student" => $student]);
+else sendError("Student not found");
+
+$conn->close();
+?>
