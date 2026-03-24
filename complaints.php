@@ -37,7 +37,6 @@ if ($method === "POST") {
         if (executeQuery($conn, "UPDATE complaints SET status='RESOLVED', resolved_at=NOW(), resolution_note=? WHERE complaint_id=?", [$note, $cid], "si")) {
             $comp_stmt = executeQuery($conn, "SELECT title, student_id FROM complaints WHERE complaint_id=?", [$cid], "i");
             $comp = $comp_stmt->get_result()->fetch_assoc();
-            logActivity($conn, "Complaint resolved: " . $comp["title"], "complaint", $admin, $comp["student_id"]);
             sendResponse();
         } else sendError($conn->error);
     } else {
@@ -49,7 +48,6 @@ if ($method === "POST") {
         $category = $data["category"] ?? "Other";
 
         if (executeQuery($conn, "INSERT INTO complaints (student_id, title, description, priority, category, status) VALUES (?, ?, ?, ?, ?, 'PENDING')", [$sid, $title, $desc, $priority, $category], "issss")) {
-            logActivity($conn, "New complaint submitted: " . $title, "complaint", "Student", $sid);
             sendResponse();
         } else sendError($conn->error);
     }
@@ -79,7 +77,6 @@ if ($method === "POST") {
     if (executeQuery($conn, $sql, $params, $types)) {
         $comp_stmt = executeQuery($conn, "SELECT student_id, title FROM complaints WHERE complaint_id=?", [$cid], "i");
         $comp = $comp_stmt->get_result()->fetch_assoc();
-        logActivity($conn, "Complaint status updated to " . $status . ": " . $comp["title"], "complaint", $admin, $comp["student_id"]);
         sendResponse();
     } else sendError($conn->error);
 } elseif ($method === "DELETE") {
@@ -112,3 +109,4 @@ if ($method === "POST") {
 }
 $conn->close();
 ?>
+

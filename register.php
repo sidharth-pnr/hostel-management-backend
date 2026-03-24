@@ -35,10 +35,10 @@ $stmt->bind_param("sssiss", $name, $reg, $dept, $year, $phone, $hashed_pass);
 
 if ($stmt->execute()) {
     $sid = $conn->insert_id;
-    logActivity($conn, "New student registration: $name", "registration", $name, $sid);
     sendResponse();
 } else {
     sendError("Registration failed: " . $stmt->error);
 }
 $conn->close();
 ?>
+

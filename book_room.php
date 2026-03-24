@@ -22,9 +22,9 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     executeQuery($conn, "DELETE FROM room_assignments WHERE student_id=? AND (status IN ('REQUESTED', 'SUGGESTED', 'APPROVED') OR (status='REJECTED' AND room_id=?))", [$sid, $rid], "ii");
 
     if (executeQuery($conn, "INSERT INTO room_assignments (student_id, room_id, status, reason) VALUES (?, ?, 'REQUESTED', ?)", [$sid, $rid, $reason], "iis")) {
-        logActivity($conn, "Requested room change to Room $r_num", "allocation", "Student", $sid);
         sendResponse();
     } else sendError("Database error during request.");
 }
 $conn->close();
 ?>
+

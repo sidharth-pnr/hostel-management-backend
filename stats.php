@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 include_once "db.php";
 
 // 1. Overall Counts
@@ -12,22 +12,26 @@ $counts = [
 $counts["occupancy_rate"] = $counts["total_capacity"] > 0 ? round(($counts["total_occupied"] / $counts["total_capacity"]) * 100) : 0;
 
 // 2. Department Distribution
-$dept_res = $conn->query("SELECT department as name, COUNT(*) as value FROM students WHERE account_status='ACTIVE' GROUP BY department");
+$dept_res = $conn->query("SELECT department as name, COUNT(*) as value FROM students WHERE account_status='ACTIVE' GROUP BY department");     
 $departments = []; while($row = $dept_res->fetch_assoc()) $departments[] = $row;
 
 // 3. Complaint Distribution
 $comp_res = $conn->query("SELECT status as name, COUNT(*) as value FROM complaints GROUP BY status");
 $complaints_dist = []; while($row = $comp_res->fetch_assoc()) $complaints_dist[] = $row;
 
-// 4. Recent Activity Log
-$activity_res = $conn->query("SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 10");
-$activity_log = []; while($row = $activity_res->fetch_assoc()) $activity_log[] = $row;
+// 4. Recent Maintenance Integration (Core Module Integration)
+$recent_comp_res = $conn->query("SELECT c.complaint_id, c.title, c.priority, c.status, c.created_at, s.name as student_name 
+                                FROM complaints c 
+                                JOIN students s ON c.student_id = s.student_id 
+                                WHERE c.status != 'CLOSED' 
+                                ORDER BY c.created_at DESC LIMIT 5");
+$recent_complaints = []; while($row = $recent_comp_res->fetch_assoc()) $recent_complaints[] = $row;
 
 echo json_encode([
     "counts" => $counts,
     "departments" => $departments,
     "complaints_dist" => $complaints_dist,
-    "activity_log" => $activity_log
+    "recent_complaints" => $recent_complaints
 ]);
 
 $conn->close();

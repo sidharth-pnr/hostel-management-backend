@@ -16,7 +16,6 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         if (empty($data["room_id"])) sendError("Missing Room ID");
         $rid = (int)$data["room_id"];
         if (executeQuery($conn, "DELETE FROM rooms WHERE room_id=?", [$rid], "i")) {
-            logActivity($conn, "Room deleted (ID: $rid)", "infrastructure", $admin);
             sendResponse();
         } else sendError("Delete failed");
     } else {
@@ -42,7 +41,6 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         }
 
         if (executeQuery($conn, "INSERT INTO rooms (block, room_number, capacity, price) VALUES (?, ?, ?, ?)", [$block, $num, $cap, $price], "ssid")) {
-            logActivity($conn, "New room added: $block-$num", "infrastructure", $admin);
             sendResponse();
         } else {
             sendError("Database rejection: Failed to initialize room record");
@@ -51,3 +49,4 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 }
 $conn->close();
 ?>
+

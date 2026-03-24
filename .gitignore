@@ -1,0 +1,17 @@
+﻿# Database configuration (protecting credentials)
+config.local.php
+.env
+
+# XAMPP/PHP specific
+php_errors.log
+*.tmp
+*.temp
+
+# Uploads (Keep the directory, ignore the files)
+uploads/*
+!uploads/.gitkeep
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini

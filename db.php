@@ -75,11 +75,5 @@ function executeQuery($conn, $sql, $params = [], $types = "") {
     }
     return $stmt;
 }
-
-function logActivity($conn, $msg, $type, $by, $target_sid = null) {
-    $sql = "INSERT INTO activity_log (message, type, performed_by, target_student_id) VALUES (?, ?, ?, ?)";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssi", $msg, $type, $by, $target_sid);
-    $stmt->execute();
-} 
 ?>
+
