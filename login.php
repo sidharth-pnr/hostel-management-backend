@@ -37,6 +37,7 @@ if ($role === "admin") {
                     "year" => $user["year"],
                     "phone" => $user["phone"],
                     "account_status" => $user["account_status"],
+                    "created_at" => $user["created_at"],
                     "role" => "student"
                 ]]);
             }

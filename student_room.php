@@ -9,7 +9,9 @@ $stmt = executeQuery($conn, "SELECT ra.status,
             ELSE 'NOT_REQUIRED'
         END as payment_status,
         ra.room_id, ra.room_id as requested_room_id, ra.reason as room_request_reason,
-        r.room_number, r.block, r.capacity, r.price,
+        CASE WHEN ra.status = 'ALLOCATED' THEN r.room_number ELSE NULL END as room_number,
+        CASE WHEN ra.status = 'ALLOCATED' THEN r.block ELSE NULL END as block,
+        r.capacity, r.price,
         (SELECT COUNT(*) FROM room_assignments ra2 WHERE ra2.room_id = r.room_id AND ra2.status = 'ALLOCATED') as current_occupancy,   
         (SELECT room_id FROM room_assignments WHERE student_id=? AND status='APPROVED' LIMIT 1) as approved_room_id,
         (SELECT room_number FROM rooms WHERE room_id = (SELECT room_id FROM room_assignments WHERE student_id=? AND status='APPROVED' LIMIT 1)) as approved_room_number,
@@ -29,6 +31,9 @@ $stmt = executeQuery($conn, "SELECT ra.status,
         ELSE 6 END ASC
     LIMIT 1", [$sid, $sid, $sid, $sid, $sid, $sid, $sid], "iiiiiii");
 
-echo json_encode($stmt->get_result()->fetch_assoc() ?: ["status" => "NONE"]);
+$data = $stmt->get_result()->fetch_assoc();
+if (!$data) $data = ["status" => "NONE", "room_number" => null];
+
+echo json_encode($data);
 $conn->close();
 ?>
