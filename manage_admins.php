@@ -1,10 +1,8 @@
 <?php
 include_once "db.php";
+checkRole(['SUPER']);
 $data = getRequestData();
-$admin_role = $data["admin_role"] ?? "";
 $action = $data["action"] ?? "list";
-
-if ($admin_role !== "SUPER") sendError("Unauthorized");
 
 if ($action === "list") {
     $res = $conn->query("SELECT admin_id, name, username, role FROM admins");

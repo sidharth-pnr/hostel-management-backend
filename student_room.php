@@ -5,7 +5,7 @@ $sid = (int)($_GET["id"] ?? 0);
 $stmt = executeQuery($conn, "SELECT ra.status, 
         CASE
             WHEN ra.status = 'ALLOCATED' THEN 'COMPLETED'
-            WHEN ra.status IN ('APPROVED', 'SUGGESTED') THEN 'PENDING'
+            WHEN ra.status = 'APPROVED' THEN 'PENDING'
             ELSE 'NOT_REQUIRED'
         END as payment_status,
         ra.room_id, ra.room_id as requested_room_id, ra.reason as room_request_reason,

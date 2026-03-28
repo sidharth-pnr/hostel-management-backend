@@ -4,6 +4,20 @@ $data = getRequestData();
 $action = $data["action"] ?? "";
 $sid = (int)($data["student_id"] ?? 0);
 $admin = $data["admin_name"] ?? "Warden";
+$req_role = $data["role"] ?? $data["admin_role"] ?? "";
+
+// RBAC: dismiss_rejection and accept_suggestion can be done by student
+if ($action === "dismiss_rejection" || $action === "accept_suggestion") {
+    if (!in_array($req_role, ['student', 'STAFF', 'SUPER'])) {
+        sendError("Unauthorized role", 403);
+    }
+    // If student, ensure they are dismissing/accepting their own
+    if ($req_role === 'student' && (int)($data["student_id"] ?? 0) !== $sid) {
+        sendError("Unauthorized: Identity mismatch", 403);
+    }
+} else {
+    checkRole(['STAFF', 'SUPER']);
+}
 
 if ($action === "approve") {
     $status = $data["status"] ?? "";

@@ -17,11 +17,11 @@ $conn = new mysqli($host, $user, $pass, $db, $port);
 if ($conn->connect_error) { die(json_encode(["error" => "Connection failed"])); }
 
 /**
- * Fetch and decode JSON input or Form data
+ * Fetch and decode JSON input, Form data, and Query parameters
  */
 function getRequestData() {
-    $json = json_decode(file_get_contents("php://input"), true);
-    return $json ?? $_POST;
+    $json = json_decode(file_get_contents("php://input"), true) ?: [];
+    return array_merge($_GET, $_POST, $json);
 }
 
 /**
@@ -74,6 +74,17 @@ function executeQuery($conn, $sql, $params = [], $types = "") {
         sendError("Execute failed: " . $stmt->error);
     }
     return $stmt;
+}
+
+/**
+ * RBAC Helper: Verifies if the requester has one of the allowed roles
+ */
+function checkRole($allowedRoles) {
+    $data = getRequestData();
+    $role = $data["admin_role"] ?? $data["role"] ?? "";
+    if (!in_array($role, $allowedRoles)) {
+        sendError("Unauthorized: Access Denied for role " . ($role ?: 'GUEST'), 403);
+    }
 }
 ?>
 

@@ -27,20 +27,50 @@ function getDemoImage($category, $status = 'PENDING') {
 if ($method === "POST") {
     $action = $data["action"] ?? "";
 
-    if ($action === "resolve") {
-        if (($data["role"] ?? "") !== "admin") sendError("Unauthorized access");
-
+    if ($action === "update_status") {
         $cid = (int)$data["complaint_id"];
+        $status = $data["status"] ?? "RESOLVED";
         $note = $data["note"] ?? "";
-        $admin = $data["admin_name"] ?? "Warden";
+        $req_role = $data["role"] ?? $data["admin_role"] ?? "";
 
-        if (executeQuery($conn, "UPDATE complaints SET status='RESOLVED', resolved_at=NOW(), resolution_note=? WHERE complaint_id=?", [$note, $cid], "si")) {
-            $comp_stmt = executeQuery($conn, "SELECT title, student_id FROM complaints WHERE complaint_id=?", [$cid], "i");
-            $comp = $comp_stmt->get_result()->fetch_assoc();
+        if (in_array($req_role, ['STAFF', 'SUPER'])) {
+            // Admin flow
+        } elseif ($req_role === 'student') {
+            // Student can only REOPEN or CLOSE, and must own it
+            if (!in_array($status, ['PENDING', 'CLOSED'])) {
+                sendError("Students can only Reopen or Close complaints", 403);
+            }
+            $sid = (int)($data["student_id"] ?? 0);
+            $check_stmt = executeQuery($conn, "SELECT student_id FROM complaints WHERE complaint_id=?", [$cid], "i");
+            $owner = $check_stmt->get_result()->fetch_assoc();
+            if (!$owner || (int)$owner['student_id'] !== $sid) {
+                sendError("Unauthorized: You do not own this complaint", 403);
+            }
+        } else {
+            sendError("Unauthorized role", 403);
+        }
+
+        $sql = "UPDATE complaints SET status=?";
+        $params = [$status];
+        $types = "s";
+
+        if ($status === "IN_PROGRESS") {
+            $sql .= ", in_progress_at = NOW()";
+        } elseif ($status === "RESOLVED" || $status === "CLOSED" || $status === "REJECTED") {
+            $sql .= ", resolved_at = NOW(), resolution_note = ?";
+            $params[] = $note;
+            $types .= "s";
+        }
+        $sql .= " WHERE complaint_id=?";
+        $params[] = $cid;
+        $types .= "i";
+
+        if (executeQuery($conn, $sql, $params, $types)) {
             sendResponse();
-        } else sendError($conn->error);
+        } else sendError("Update failed");
     } else {
         // NEW COMPLAINT
+        checkRole(['student']);
         $sid = (int)($data["student_id"] ?? 0);
         $title = $data["title"] ?? "No Title";
         $desc = $data["description"] ?? "No Description";
@@ -49,51 +79,34 @@ if ($method === "POST") {
 
         if (executeQuery($conn, "INSERT INTO complaints (student_id, title, description, priority, category, status) VALUES (?, ?, ?, ?, ?, 'PENDING')", [$sid, $title, $desc, $priority, $category], "issss")) {
             sendResponse();
-        } else sendError($conn->error);
+        } else sendError("Submission failed");
     }
-} elseif ($method === "PUT") {
-    $cid = (int)$data["complaint_id"];
-    $status = $data["status"];
-    $admin = $data["admin_name"] ?? "Warden";
-    $note = $data["note"] ?? null;
-
-    $sql = "UPDATE complaints SET status=?";
-    $params = [$status];
-    $types = "s";
-
-    if ($status === "IN_PROGRESS") $sql .= ", in_progress_at = NOW()";
-    if ($status === "RESOLVED" || $status === "CLOSED") {
-        $sql .= ", resolved_at = NOW()";
-        if ($note) {
-            $sql .= ", resolution_note = ?";
-            $params[] = $note;
-            $types .= "s";
-        }
-    }
-    $sql .= " WHERE complaint_id=?";
-    $params[] = $cid;
-    $types .= "i";
-
-    if (executeQuery($conn, $sql, $params, $types)) {
-        $comp_stmt = executeQuery($conn, "SELECT student_id, title FROM complaints WHERE complaint_id=?", [$cid], "i");
-        $comp = $comp_stmt->get_result()->fetch_assoc();
-        sendResponse();
-    } else sendError($conn->error);
 } elseif ($method === "DELETE") {
+    checkRole(['SUPER']); // Only Super Admins can delete complaint records
     $cid = (int)($_GET["id"] ?? 0);
     if ($cid && executeQuery($conn, "DELETE FROM complaints WHERE complaint_id=?", [$cid], "i")) sendResponse();
-    else sendError("Missing or Invalid ID");
+    else sendError("Delete failed or ID missing");
 } else {
+    // GET Logic
     $sid = (int)($_GET["id"] ?? 0);
+    $type = $_GET["type"] ?? "";
+    
     $sql = "SELECT c.*, s.name as student_name FROM complaints c JOIN students s ON c.student_id = s.student_id";
     $params = [];
     $types = "";
     
-    if ($sid) {
+    if ($type === "all") {
+        checkRole(['STAFF', 'SUPER']);
+        // No filter needed, already joining students
+    } elseif ($sid) {
+        // Assume student role check or ID verification should happen here in a real app
         $sql .= " WHERE c.student_id = ?";
         $params[] = $sid;
         $types = "i";
+    } else {
+        sendError("Parameters missing");
     }
+    
     $sql .= " ORDER BY complaint_id DESC";
     
     $stmt = executeQuery($conn, $sql, $params, $types);

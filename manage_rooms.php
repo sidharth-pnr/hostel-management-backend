@@ -6,6 +6,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $list = []; while($row = $res->fetch_assoc()) $list[] = $row;
     echo json_encode($list);
 } else {
+    checkRole(['SUPER']);
     $data = getRequestData();
     if (!$data) sendError("No data received by API");
     
